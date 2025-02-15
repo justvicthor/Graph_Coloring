@@ -3,6 +3,7 @@
 
 #include <array>
 #include <fstream>
+#include <random>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -11,6 +12,8 @@ template<unsigned int dim>
 struct graph {
 
     explicit graph(const std::string& file_path);
+
+    explicit graph(double density);
 
     // incident matrix
     std::array<std::array<bool, dim>, dim> m;

@@ -7,13 +7,14 @@
 #include "../include/graph.h"
 #include "../include/solution.h"
 
-constexpr unsigned int N = 4;
+constexpr unsigned int N = 30;
 
 int main(){
 
-  unsigned int tot_solutions_generated = 0;
+  unsigned long int tot_solutions_generated = 0;
 
-  graph<N> g("../inputs/g.col");
+  //graph<N> g("../inputs/g.col");
+  graph<N> g(0.8);
   std::cout << g << std::endl;
 
   solution<N>::g = &g;
@@ -39,10 +40,11 @@ int main(){
       if (curr.tot_colors < solution<N>::colors_ub) {
         solution<N>::colors_ub = curr.tot_colors;
         best_so_far = curr;
+        std::cout << curr << std::endl;
       }
     }
 
-    std::cout << curr << std::endl;
+    //std::cout << curr << std::endl;
   }
 
   std::cout << "==== Optimal Solution ====\n" << best_so_far << "==========================\n";
