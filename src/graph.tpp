@@ -1,8 +1,6 @@
 #pragma once
 template <unsigned int dim>
-graph<dim>::graph(const std::string& file_path)
-    : m{}
-{
+graph<dim>::graph(const std::string& file_path) : m{} {
     std::ifstream file(file_path);
     if (!file) {
         throw std::runtime_error("Error: Unable to open file " + file_path);
