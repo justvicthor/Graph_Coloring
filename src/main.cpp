@@ -28,7 +28,7 @@ int main(){
     auto curr = q.top(); q.pop();
     tot_solutions_generated++;
 
-    if(!curr.is_final()) {
+    if(!curr.is_final() && curr.tot_colors < solution<N>::colors_ub) {
       auto tmp = curr.get_next();
       // add children to the STACK in reverse order, to ensure the first one of the list is popped next
       for(auto child = tmp.rbegin(); child != tmp.rend(); ++child)
