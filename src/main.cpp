@@ -22,24 +22,31 @@ int main(){
   std::stack<solution<N>> q{};
   q.push(s);
 
+  solution<N> best_so_far;
+
   while(!q.empty()) {
     auto curr = q.top(); q.pop();
     tot_solutions_generated++;
-
-    std::cout << curr << std::endl;
 
     if(!curr.is_final()) {
       auto tmp = curr.get_next();
       // add children to the STACK in reverse order, to ensure the first one of the list is popped next
       for(auto child = tmp.rbegin(); child != tmp.rend(); ++child)
         q.push(*child);
+
     } else {
-      solution<N>::colors_ub = std::min(solution<N>::colors_ub, curr.tot_colors);
+      // check if the current solution is better than the previous one
+      if (curr.tot_colors < solution<N>::colors_ub) {
+        solution<N>::colors_ub = curr.tot_colors;
+        best_so_far = curr;
+      }
     }
+
+    std::cout << curr << std::endl;
   }
 
-  std::cout << "Tot solutions generated:\t" << tot_solutions_generated << std::endl;
+  std::cout << "==== Optimal Solution ====\n" << best_so_far << "==========================\n";
+  std::cout << "Tot solutions explored:\t" << tot_solutions_generated << std::endl;
 
-  std::cout << "Upperbound on colors:\t\t" << solution<N>::colors_ub << std::endl;
   return 0;
 }
