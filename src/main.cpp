@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <vector>
+
 #include <queue>
+#include <stack>
 
 #include "../include/graph.h"
 #include "../include/solution.h"
@@ -14,20 +16,25 @@ int main(){
   graph<N> g("../inputs/g.col");
   std::cout << g << std::endl;
 
+  solution<N>::g = &g;
+
   const solution<N> s{};
-  std::queue<solution<N>> q{};
+  std::stack<solution<N>> q{};
   q.push(s);
 
   while(!q.empty()) {
-    auto curr = q.front(); q.pop();
+    auto curr = q.top(); q.pop();
     tot_solutions_generated++;
 
     std::cout << curr << std::endl;
 
     if(!curr.is_final()) {
       auto tmp = curr.get_next();
-      for(auto& child : tmp)
-        q.push(child);
+      // add children to the STACK in reverse order, to ensure the first one of the list is popped next
+      for(auto child = tmp.rbegin(); child != tmp.rend(); ++child)
+        q.push(*child);
+    } else {
+      solution<N>::colors_ub = std::min(solution<N>::colors_ub, curr.tot_colors);
     }
   }
 

@@ -4,12 +4,14 @@
 #include <array>
 #include <vector>
 
+#include "graph.h"
+
 template<unsigned int dim>
 struct solution {
     // nodes are numbered   [0 to dim-1]
     // colors are numbered  [1 to dim (at most)]
 
-    static graph<dim> *g;
+    static graph<dim>* g;
 
     // upper bound on number of colors to use
     static unsigned int colors_ub;
@@ -43,6 +45,7 @@ struct solution {
         os << sol.color[dim - 1] << " ]\n";
         os << "Total colors:\t" << sol.tot_colors << "\n";
         os << "Next:\t\t\t" << sol.next << "\n";
+        os << "Color ub:\t\t" << colors_ub << "\n";
 
         return os;
     }
