@@ -1,6 +1,6 @@
 #ifndef CLIQUE_COLORING_TPP
 #define CLIQUE_COLORING_TPP
-
+ 
 #include <omp.h>
 #include <utility>
 #include <forward_list>
