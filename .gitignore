@@ -1,3 +1,7 @@
 CMakeLists.txt
 cmake-build-debug
 build
+.idea
+inputs
+!inputs/g.col
+run.sh
