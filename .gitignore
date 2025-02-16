@@ -5,3 +5,4 @@ build
 inputs
 !inputs/g.col
 run.sh
+.DS_Store
