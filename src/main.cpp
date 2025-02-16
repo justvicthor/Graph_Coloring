@@ -7,14 +7,14 @@
 #include "../include/graph.h"
 #include "../include/solution.h"
 
-constexpr unsigned int N = 30;
+constexpr unsigned int N = 4;
 
 int main(){
 
   unsigned long int tot_solutions_generated = 0;
 
-  //graph<N> g("../inputs/g.col");
-  graph<N> g(0.8);
+  graph<N> g("../inputs/g.col");
+  //graph<N> g(0.8);
   std::cout << g << std::endl;
 
   solution<N>::g = &g;
@@ -24,6 +24,7 @@ int main(){
   q.push(s);
 
   solution<N> best_so_far;
+  bool first = true;
 
   while(!q.empty()) {
     auto curr = q.top(); q.pop();
@@ -37,7 +38,8 @@ int main(){
 
     } else {
       // check if the current solution is better than the previous one
-      if (curr.tot_colors < solution<N>::colors_ub) {
+      if (first || curr.tot_colors < solution<N>::colors_ub) {
+        first = false;
         solution<N>::colors_ub = curr.tot_colors;
         best_so_far = curr;
         std::cout << curr << std::endl;
