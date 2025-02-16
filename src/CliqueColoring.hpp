@@ -2,7 +2,7 @@
 #define CLIQUE_COLORING_HPP
 
 #include <vector>
-#include <bitset>
+#include <bitset> 
 #include "Graph.hpp"
 
 // Global constants for bitset sizes.
