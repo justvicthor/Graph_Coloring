@@ -64,3 +64,17 @@ bool solution<dim>::is_valid(const unsigned int node_to_check) const {
 
     return true;
 }
+
+template <unsigned int dim>
+void create_MPI_Type_solution(MPI_Datatype* mpi_solution) {
+    int block_lengths[2] = {dim, 2};
+    MPI_Aint offsets[2];
+    MPI_Datatype types[2] = {MPI_UNSIGNED, MPI_UNSIGNED};
+
+    solution<dim> temp;
+    offsets[0] = offsetof(solution<dim>, color);
+    offsets[1] = offsetof(solution<dim>, tot_colors);
+
+    MPI_Type_create_struct(2, block_lengths, offsets, types, mpi_solution);
+    MPI_Type_commit(mpi_solution);
+}

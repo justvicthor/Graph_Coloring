@@ -39,13 +39,13 @@ struct solution {
     std::vector<solution<dim>> get_next() const;
 
     friend std::ostream& operator<<(std::ostream& os, const solution<dim>& sol) {
-        os << "Solution:\t\t[ ";
+        os << "Solution:\t[ ";
         for (unsigned int i = 0; i < dim - 1; ++i)
             os << sol.color[i] << ", ";
         os << sol.color[dim - 1] << " ]\n";
         os << "Total colors:\t" << sol.tot_colors << "\n";
-        os << "Next:\t\t\t" << sol.next << "\n";
-        os << "Color ub:\t\t" << colors_ub << "\n";
+        os << "Next:\t\t" << sol.next << "\n";
+        os << "Color ub:\t" << colors_ub << "\n";
 
         return os;
     }
