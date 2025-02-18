@@ -11,7 +11,7 @@ Come funziona:
 	•	Itera su tutti i vertici, sommando il grado (numero di adiacenze) di ciascun vertice.
 	•	Ritorna la media: se n > 0 la somma divisa per n, altrimenti 0.
 
-Esempio Visivo:
+
 Immagina un grafo con 4 vertici con gradi rispettivi: 2, 3, 3, 2.
 La funzione calcolerà:
 	•	Somma totale = 2 + 3 + 3 + 2 = 10
@@ -139,53 +139,6 @@ In molti algoritmi greedy, partire dai vertici più connessi aiuta a minimizzare
 	•	Restituisce il vettore colors che associa ad ogni vertice il colore assegnato.
 
 Esempio Visivo:
-
-Immagina un vertice v con vicini che hanno i colori 0 e 2.
-	•	Il bitset usedColors risulterebbe:
-
-Indice: 0 1 2 3 ...
-Bitset: [1, 0, 1, 0, ...]
-
-
-	•	Il ciclo parte da 0:
-	•	0 è usato → passa a 1.
-	•	1 non è usato → assegna il colore 1 a v.
-
- 
-
-+-------------------------+
-|  Ottieni lista vertici  |
-+-------------------------+
-            |
-            v
-+-----------------------------+
-| Calcola il grado di ogni    |
-| vertice e ordina decrescenti |
-+-----------------------------+
-            |
-            v
-+-----------------------------+   (Parallelo con OpenMP)
-| Per ogni vertice v:         |-----------------------
-|  - Inizializza clique {v}   |                      |
-|  - Imposta candidati =      |                      |
-|    bitset dei vicini di v   |                      |
-|  - Ordina i vicini per grado |                      |
-|  - Per ogni vicino u:       |                      |
-|       * Se u in candidati,  |                      |
-|         aggiungi u e        |                      |
-|         aggiorna candidati  |                      |
-+-----------------------------+                      |
-            |                                       |
-            v                                       |
-+-----------------------------+                      |
-| Se clique corrente > best   |                      |
-| clique del thread, aggiorna |                      |
-+-----------------------------+                      |
-            |                                       |
-            v                                       |
-+-----------------------------------------------------+
-| In sezione critica, aggiorna la global best clique  |
-+-----------------------------------------------------+
 
 Considerazioni Finali
 	•	Utilizzo dei Bitset:
