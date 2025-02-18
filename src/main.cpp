@@ -6,16 +6,24 @@
 #include <stack>
 
 #include <pthread.h>
+#include <unistd.h>
 
 #include "../include/graph.h"
 #include "../include/solution.h"
 
 constexpr unsigned int N = 5;
 
+constexpr int INITIAL_NODE = 1;
+constexpr int SOLUTION_FROM_WORKER = 2;
+constexpr int RETURN = 3;
+
 void master_job();
-[[noreturn]] void* listen_for_ub_updates(void* arg);
+void* listen_for_ub_updates_from_root(void* arg);
+[[noreturn]] void* listen_for_ub_updates_from_workers(void* arg);
 
 int rank;
+int size;
+MPI_Datatype mpi_solution;
 
 // TODO : FIX WILE TRUE FOR PROCESS 0
 // TODO : FIX NON-WORKING PROCESSES
@@ -45,10 +53,9 @@ int main(int argc, char** argv){
   }
 
   // get tot number of processes and rank for each process
-  int size; MPI_Comm_size(MPI_COMM_WORLD, &size); MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size); MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // create MPI data_type for solution class
-  MPI_Datatype mpi_solution;
   create_MPI_Type_solution<N>(&mpi_solution);
 
   // ----- init MPI ----- //
@@ -119,156 +126,166 @@ int main(int argc, char** argv){
     // main process now dispatches each node to a worker process
     int i = 1;
     while ( !initial_q.empty() ) {
-      MPI_Send(&initial_q.front(), 1, mpi_solution, i, 0, MPI_COMM_WORLD);
+      MPI_Send(&initial_q.front(), 1, mpi_solution, i, INITIAL_NODE, MPI_COMM_WORLD);
       initial_q.pop();
+      i++;
+    }
+
+    const solution<N> dummy_solution{};
+    while ( i < size ) {
+      MPI_Send(&dummy_solution, 1, mpi_solution, i, 0, MPI_COMM_WORLD);
       i++;
     }
 
     std::cout << "Process 0 sent starting node to workers." << std::endl;
 
-    // while at least one worker has not finished
-    while (true) {
-      MPI_Status status;
-      solution<N> new_best;
-      MPI_Recv(&new_best, 1, mpi_solution, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+    // start thread to listen to solutions found by worker threads
+    pthread_t listener_thread;
+    pthread_create(&listener_thread, nullptr, listen_for_ub_updates_from_workers, nullptr);
 
-      // if the new best solution is actually better
-      if(new_best.tot_colors < solution<N>::colors_ub) {
-        // update upper bound in rank 0 memory
-        solution<N>::colors_ub = new_best.tot_colors;
-
-        // broadcast new upperbound to workers
-        MPI_Bcast(&solution<N>::colors_ub, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-      }
+    // wait for workers to finish
+    MPI_Barrier(MPI_COMM_WORLD);
 
 
+    pthread_join(listener_thread, nullptr);
 
-      std::cout << "Process " << status.MPI_SOURCE << " sent solution:\n" << new_best << "\n";
-    }
   }
 
   if(rank != 0) {
-
     solution<N> sol_init_loc;
-    MPI_Recv(&sol_init_loc, 1, mpi_solution, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    std::cout << "Process " << rank << " received the solution:\n" << sol_init_loc << std::endl;
+    // wait for initial node from proces 0
+    MPI_Status status;
+    MPI_Recv(&sol_init_loc, 1, mpi_solution, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
     // summon listener thread
     pthread_t listener_thread;
-    pthread_create(&listener_thread, nullptr, listen_for_ub_updates, nullptr);
+    pthread_create(&listener_thread, nullptr, listen_for_ub_updates_from_root, nullptr);
 
-    unsigned long int tot_solutions_generated = 0;
-    std::stack<solution<N>> q{};
-    q.push(sol_init_loc);
+    // if a message was received with a tag different from zero, the worker thread does nothing
+    if(status.MPI_TAG != INITIAL_NODE) {
+      std::cout << "Process " << rank << " did not receive a node!" << std::endl;
 
-    solution<N> best_so_far;
+    } else {
+      std::cout << "Process " << rank << " received the solution:\n" << sol_init_loc << std::endl;
 
-    while(!q.empty()) {
+      unsigned long int tot_solutions_generated = 0;
+      std::stack<solution<N>> q{};
+      q.push(sol_init_loc);
 
-      // pop the first element in the stack
-      auto curr = q.top(); q.pop();
-      tot_solutions_generated++;
+      solution<N> best_so_far;
 
-      if(!curr.is_final()) {
+      while(!q.empty()) {
 
-        // prune internal nodes that require more (or as many) colors than the current known upperbound
-        if(curr.tot_colors >= solution<N>::colors_ub) continue;
+        // pop the first element in the stack
+        auto curr = q.top(); q.pop();
+        tot_solutions_generated++;
 
-        // generate children nodes
-        auto tmp = curr.get_next();
-        // add them to the STACK in reverse order, to ensure the first one of the list is popped next
-        for(auto child = tmp.rbegin(); child != tmp.rend(); ++child)
-          q.push(*child);
+        if(!curr.is_final()) {
 
-      } else if (curr.tot_colors < solution<N>::colors_ub) {
-        // if the current solution is better than the previous one (or if it is the first optimal solution)
+          // prune internal nodes that require more (or as many) colors than the current known upperbound
+          if(curr.tot_colors >= solution<N>::colors_ub) continue;
 
-        // update the upper bound, the current best solution and print it
-        solution<N>::colors_ub = curr.tot_colors;
-        best_so_far = curr;
+          // generate children nodes
+          auto tmp = curr.get_next();
+          // add them to the STACK in reverse order, to ensure the first one of the list is popped next
+          for(auto child = tmp.rbegin(); child != tmp.rend(); ++child)
+            q.push(*child);
 
-        // communicate new best solution root process (rank 0)
-        MPI_Send(&best_so_far, 1, mpi_solution, 0, 0, MPI_COMM_WORLD);
+        } else if (curr.tot_colors < solution<N>::colors_ub) {
+          // if the current solution is better than the previous one (or if it is the first optimal solution)
+
+          // update the upper bound, the current best solution and print it
+          solution<N>::colors_ub = curr.tot_colors;
+          best_so_far = curr;
+
+          // communicate new best solution root process (rank 0)
+          MPI_Send(&best_so_far, 1, mpi_solution, 0, SOLUTION_FROM_WORKER, MPI_COMM_WORLD);
+        }
       }
+
+      //if(best_so_far.is_final()) {
+      //  std::cout << "==== Optimal Solution ====\n" << best_so_far << "==========================\n";
+      //  std::cout << "Tot solutions explored:\t" << tot_solutions_generated << std::endl << std::endl;
+      //} else {
+      //  std::cout << "No solutions found with less than " << solution<N>::colors_ub << " colors." << std::endl;
+      //}
+
+      std::cout << "Process " << rank << " ended computation!" << std::endl;
+
     }
 
-    //if(best_so_far.is_final()) {
-    //  std::cout << "==== Optimal Solution ====\n" << best_so_far << "==========================\n";
-    //  std::cout << "Tot solutions explored:\t" << tot_solutions_generated << std::endl << std::endl;
-    //} else {
-    //  std::cout << "No solutions found with less than " << solution<N>::colors_ub << " colors." << std::endl;
-    //}
+    // communicate to root process this process is done
+    solution<N> dummy;
+    MPI_Send(&dummy, 1, mpi_solution, 0, RETURN, MPI_COMM_WORLD);
 
-    pthread_cancel(listener_thread);
+    // let rank 0 node know computation is completed
+    MPI_Barrier(MPI_COMM_WORLD);
 
+    // wait return of listener thread
+    pthread_join(listener_thread, nullptr);
   }
 
 
   std::cout << "Process " << rank << " completed!" << std::endl;
 
-
   MPI_Type_free(&mpi_solution);
   MPI_Finalize();
+
   return 0;
 }
 
-[[noreturn]] void* listen_for_ub_updates(void* arg) {
+// this function is executed by a thread on each worker process
+void* listen_for_ub_updates_from_root(void* arg) {
 
   while (true) {
     // Blocking call: Will wait here until rank 0 broadcasts a message
     unsigned int new_ub;
     MPI_Bcast(&new_ub, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
+    if (new_ub == RETURN) break;
+
     if (new_ub < solution<N>::colors_ub) {
       solution<N>::colors_ub = new_ub;
       std::cout << "Process " << rank << " received new ub: " << solution<N>::colors_ub << std::endl;
     }
   }
 
+  return nullptr;
+
 }
 
-// this function looks for solution that require STRICTLY LESS THAN solution<dim>::colors_ub colors
-void master_job() {
-  unsigned long int tot_solutions_generated = 0;
+void* listen_for_ub_updates_from_workers(void* arg) {
+  int worker_done = 0;
+  solution<N> best;
 
-  const solution<N> s{};
-  std::stack<solution<N>> q{};
-  q.push(s);
+  // while at least one worker has not finished
+  while (worker_done < size - 1) {
+    MPI_Status status;
+    solution<N> new_best;
+    MPI_Recv(&new_best, 1, mpi_solution, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
-  solution<N> best_so_far;
+    if(status.MPI_TAG == RETURN) {
+      worker_done += 1;
+    }
 
-  while(!q.empty()) {
+    if(status.MPI_TAG == SOLUTION_FROM_WORKER) {
+      // if the new best solution is actually better
+      if(new_best.tot_colors < solution<N>::colors_ub) {
+        // update upper bound in rank 0 memory
+        solution<N>::colors_ub = new_best.tot_colors;
+        best = new_best;
 
-    // pop the first element in the stack
-    auto curr = q.top(); q.pop();
-    tot_solutions_generated++;
+        // broadcast new upperbound to workers
+        MPI_Bcast(&solution<N>::colors_ub, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+      }
 
-    if(!curr.is_final()) {
-
-      // prune internal nodes that require more (or as many) colors than the current known upperbound
-      if(curr.tot_colors >= solution<N>::colors_ub) continue;
-
-      // generate children nodes
-      auto tmp = curr.get_next();
-      // add them to the STACK in reverse order, to ensure the first one of the list is popped next
-      for(auto child = tmp.rbegin(); child != tmp.rend(); ++child)
-        q.push(*child);
-
-    } else if (curr.tot_colors < solution<N>::colors_ub) {
-      // if the current solution is better than the previous one (or if it is the first optimal solution)
-
-      // update the upper bound, the current best solution and print it
-      solution<N>::colors_ub = curr.tot_colors;
-      best_so_far = curr;
-      std::cout << curr << std::endl;
+      std::cout << "Process " << status.MPI_SOURCE << " sent solution:\n" << new_best << "\n";
     }
   }
 
-  if(best_so_far.is_final()) {
-    std::cout << "==== Optimal Solution ====\n" << best_so_far << "==========================\n";
-    std::cout << "Tot solutions explored:\t" << tot_solutions_generated << std::endl << std::endl;
-  } else {
-    std::cout << "No solutions found with less than " << solution<N>::colors_ub << " colors." << std::endl;
-  }
+  std::cout << "===== OPTIMAL SOLUTION =====\n" << best << "============================" << std::endl;
+
+  return nullptr;
 
 }
