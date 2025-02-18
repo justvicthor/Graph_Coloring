@@ -138,7 +138,7 @@ In molti algoritmi greedy, partire dai vertici più connessi aiuta a minimizzare
 	4.	Ritorno del Risultato:
 	•	Restituisce il vettore colors che associa ad ogni vertice il colore assegnato.
 
-Esempio Visivo:
+
 
 Considerazioni Finali
 	•	Utilizzo dei Bitset:
