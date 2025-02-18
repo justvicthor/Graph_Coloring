@@ -11,7 +11,7 @@
 #include "../include/graph.h"
 #include "../include/solution.h"
 
-constexpr unsigned int N = 5;
+constexpr unsigned int N = 49;
 
 constexpr int INITIAL_NODE = 1;
 constexpr int SOLUTION_FROM_WORKER = 2;
@@ -19,7 +19,7 @@ constexpr int RETURN = 3;
 
 void master_job();
 void* listen_for_ub_updates_from_root(void* arg);
-[[noreturn]] void* listen_for_ub_updates_from_workers(void* arg);
+void* listen_for_ub_updates_from_workers(void* arg);
 
 int rank;
 int size;
@@ -284,6 +284,8 @@ void* listen_for_ub_updates_from_workers(void* arg) {
     }
   }
 
+  // broadcast workers we are done
+  MPI_Bcast((void *)(&RETURN), 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
   std::cout << "===== OPTIMAL SOLUTION =====\n" << best << "============================" << std::endl;
 
   return nullptr;
