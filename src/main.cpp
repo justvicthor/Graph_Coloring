@@ -50,8 +50,9 @@ void receive_solution(solution &sol, int source, int tag, MPI_Comm comm, MPI_Sta
 int rank;
 int size;
 
-// TODO : FIX WILE TRUE FOR PROCESS 0
-// TODO : FIX NON-WORKING PROCESSES
+// TODO : MAKE SURE GRAPH IS READ ONLY BY PROCESS 0 and broadcast after
+// TODO : ADD better output format (maybe in file)
+// TODO : add lower bound check
 
 int main(int argc, char** argv){
 
