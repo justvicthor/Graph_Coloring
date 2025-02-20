@@ -1,23 +1,24 @@
 #ifndef SOLUTION_H
 #define SOLUTION_H
 
-#include <array>
 #include <vector>
+#include <mpi.h>
 
 #include "graph.h"
 
-template<unsigned int dim>
 struct solution {
     // nodes are numbered   [0 to dim-1]
     // colors are numbered  [1 to dim (at most)]
 
-    static graph<dim>* g;
+    static size_t dim;
+
+    static graph * g;
 
     // upper bound on number of colors to use
     static unsigned int colors_ub;
 
     // this array contains the color (repr as an integer) of each node: 0 -> color not assigned yet
-    std::array<unsigned int, dim> color;
+    std::vector<unsigned int> color;
 
     // total number of colors used
     unsigned int tot_colors;
@@ -36,26 +37,26 @@ struct solution {
     bool is_valid(unsigned int node_to_check) const;
 
     // returns a list of solutions, "children" of this, each one has a different color for the selected node
-    std::vector<solution<dim>> get_next() const;
+    [[nodiscard]] std::vector<solution> get_next() const;
 
-    friend std::ostream& operator<<(std::ostream& os, const solution<dim>& sol) {
-        os << "Solution:\t[ ";
-        for (unsigned int i = 0; i < dim - 1; ++i)
+    friend std::ostream& operator<<(std::ostream& os, const solution& sol) {
+        os << "Solution:\t\t[ ";
+        for (unsigned int i = 0; i < solution::dim - 1; ++i)
             os << sol.color[i] << ", ";
-        os << sol.color[dim - 1] << " ]\n";
+        os << sol.color[solution::dim - 1] << " ]\n";
         os << "Total colors:\t" << sol.tot_colors << "\n";
-        os << "Next:\t\t" << sol.next << "\n";
-        os << "Color ub:\t" << colors_ub << "\n";
+        os << "Next:\t\t\t" << sol.next << "\n";
+        os << "Color ub:\t\t" << colors_ub << "\n";
 
         return os;
     }
 
+    static void attach_graph(graph * g);
+
 private:
 
     // constructor for the "child" of the solution
-    solution(const solution<dim>& parent, const unsigned int node_to_color, const unsigned int node_color);
+    solution(const solution& parent, unsigned int node_to_color, unsigned int node_color);
 };
-
-#include "../src/solution.tpp"
 
 #endif //SOLUTION_H
