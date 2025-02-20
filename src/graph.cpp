@@ -1,6 +1,8 @@
-#pragma once
-template <unsigned int dim>
-graph<dim>::graph(const std::string& file_path) : m{} {
+#include "graph.h"
+
+size_t graph::dim = -1;
+
+graph::graph(const std::string& file_path) {
     std::ifstream file(file_path);
     if (!file) {
         throw std::runtime_error("Error: Unable to open file " + file_path);
@@ -18,7 +20,11 @@ graph<dim>::graph(const std::string& file_path) : m{} {
             std::string format;
             unsigned int nodes, edges;
             iss >> format >> nodes >> edges;
-            if (format != "edge" || nodes != dim) {
+
+            graph::dim = nodes;
+            m.resize(graph::dim, std::vector<bool>(graph::dim, false));
+
+            if (format != "edge") {
                 throw std::runtime_error("Error: Dimension mismatch in file");
             }
         } else if (type == "e") {
@@ -33,8 +39,7 @@ graph<dim>::graph(const std::string& file_path) : m{} {
     }
 }
 
-template <unsigned int dim>
-graph<dim>::graph(const double density) : m{} {
+graph::graph(const size_t d, const double density) : m(d, std::vector<bool>(d, false)) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::bernoulli_distribution dist(density); // Probability of an edge
@@ -49,7 +54,6 @@ graph<dim>::graph(const double density) : m{} {
     }
 }
 
-template<unsigned int dim>
-bool graph<dim>::operator()(unsigned int i, unsigned int j) const {
-    return m[i][j];
+bool graph::operator()(const unsigned int i, const unsigned int j) const {
+    return m.at(i).at(j);
 }

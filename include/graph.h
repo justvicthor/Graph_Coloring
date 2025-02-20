@@ -8,21 +8,22 @@
 #include <sstream>
 #include <string>
 
-template<unsigned int dim>
 struct graph {
 
     explicit graph(const std::string& file_path);
 
-    explicit graph(double density);
+    explicit graph(size_t d, double density);
+
+    static size_t dim;
 
     // incident matrix
-    std::array<std::array<bool, dim>, dim> m;
+    std::vector<std::vector<bool>> m;
 
     bool operator()(unsigned int i, unsigned int j) const;
 
-    friend std::ostream& operator<<(std::ostream& os, const graph<dim>& g) {
-        for (unsigned int i = 0; i < dim; ++i) {
-            for (unsigned int j = 0; j < dim; ++j) {
+    friend std::ostream& operator<<(std::ostream& os, const graph& g) {
+        for (unsigned int i = 0; i < graph::dim; ++i) {
+            for (unsigned int j = 0; j < graph::dim; ++j) {
                 os << g.m[i][j] << "  ";
             }
             os << "\n";
@@ -30,7 +31,5 @@ struct graph {
         return os;
     }
 };
-
-#include "../src/graph.tpp"
 
 #endif //GRAPH_H
