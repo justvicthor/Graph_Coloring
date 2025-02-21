@@ -2,6 +2,8 @@
 
 size_t graph::dim = -1;
 
+graph::graph() = default;
+
 graph::graph(const std::string& file_path) {
     std::ifstream file(file_path);
     if (!file) {
