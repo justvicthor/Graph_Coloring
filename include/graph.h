@@ -10,9 +10,11 @@
 
 struct graph {
 
+    graph();
+
     explicit graph(const std::string& file_path);
 
-    explicit graph(size_t d, double density);
+    graph(size_t d, double density);
 
     static size_t dim;
 

@@ -11,17 +11,14 @@
 #include "../include/graph.h"
 #include "../include/solution.h"
 
-constexpr unsigned int N = 49;
-
 constexpr int INITIAL_NODE = 1;
 constexpr int SOLUTION_FROM_WORKER = 2;
 constexpr int RETURN = 3;
 
-void master_job();
 void* listen_for_ub_updates_from_root(void* arg);
 void* listen_for_ub_updates_from_workers(void* arg);
 
-void send_solution(const solution &sol, int dest, int tag, MPI_Comm comm) {
+void send_solution(const solution &sol, const int dest, const int tag, MPI_Comm comm) {
   // Create a buffer to hold all data
   std::vector<unsigned int> buffer(solution::dim + 2);
 
@@ -34,7 +31,7 @@ void send_solution(const solution &sol, int dest, int tag, MPI_Comm comm) {
   MPI_Send(buffer.data(), buffer.size(), MPI_UNSIGNED, dest, tag, comm);
 }
 
-void receive_solution(solution &sol, int source, int tag, MPI_Comm comm, MPI_Status &status) {
+void receive_solution(solution &sol, const int source, const int tag, MPI_Comm comm, MPI_Status &status) {
   // Create a buffer to receive all data
   std::vector<unsigned int> buffer(solution::dim + 2);
 
@@ -47,27 +44,57 @@ void receive_solution(solution &sol, int source, int tag, MPI_Comm comm, MPI_Sta
   sol.next = buffer[solution::dim + 1];
 }
 
+void broadcast_graph(graph &g, const int root, MPI_Comm comm) {
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+
+  // Step 1: Broadcast the graph dimension from root
+  unsigned int size;
+  if (rank == root) size = static_cast<unsigned int>(graph::dim);
+
+  MPI_Bcast(&size, 1, MPI_UNSIGNED, root, comm);
+
+  if (rank != root) graph::dim = static_cast<size_t>(size);
+
+  // Step 2: Resize adjacency matrix after receiving dimension
+  if (rank != root) {
+    g.m.resize(graph::dim, std::vector<bool>(graph::dim));
+  }
+
+  // Step 3: Prepare a flat buffer to store adjacency matrix
+  std::vector<char> buffer(graph::dim * graph::dim);
+
+  if (rank == root) {
+    // Flatten the adjacency matrix for broadcasting
+    for (size_t i = 0; i < graph::dim; ++i) {
+      for (size_t j = 0; j < graph::dim; ++j) {
+        buffer[i * graph::dim + j] = g.m[i][j] ? 1 : 0;  // Convert bool to char
+      }
+    }
+  }
+
+  // Step 4: Broadcast the adjacency matrix to all processes
+  MPI_Bcast(buffer.data(), buffer.size(), MPI_CHAR, root, comm);
+
+  // Step 5: Convert received buffer back into adjacency matrix
+  if (rank != root) {
+    for (size_t i = 0; i < graph::dim; ++i) {
+      for (size_t j = 0; j < graph::dim; ++j) {
+        g.m[i][j] = (buffer[i * graph::dim + j] != 0);
+      }
+    }
+  }
+}
+
 int rank;
 int size;
 
-// TODO : MAKE SURE GRAPH IS READ ONLY BY PROCESS 0 and broadcast after
 // TODO : ADD better output format (maybe in file)
 // TODO : add lower bound check
 
 int main(int argc, char** argv){
 
-  // ----- graph initialization ----- //
-
-  // read graph from file
-  graph g("../inputs/anna.col");
-  //graph<N> g(0.8);
-
-  //std::cout << g << std::endl;
-
-  // give a reference of the graph to all instances of solution objects
-  solution::attach_graph(&g);
-
-  // ----- graph initialization ----- //
+  graph g{};
 
   // ----- init MPI ----- //
 
@@ -87,6 +114,16 @@ int main(int argc, char** argv){
 
   // rank 0 process initializes the fist queue, exploring solution space with BFS
   if (rank == 0) {
+
+    // initialize the graph and send it to other processes
+    g = graph("../inputs/anna.col");
+
+    // send the graph to other processes
+    broadcast_graph(g, 0, MPI_COMM_WORLD);
+
+    // give a reference of the graph to all instances of solution objects
+    solution::attach_graph(&g);
+
     std::queue<solution> initial_q{};
 
     const solution s{};
@@ -175,6 +212,13 @@ int main(int argc, char** argv){
   }
 
   if(rank != 0) {
+
+    // receive graph from root node
+    broadcast_graph(g, 0, MPI_COMM_WORLD);
+
+    solution::attach_graph(&g);
+
+
     solution sol_init_loc;
 
     // wait for initial node from proces 0
@@ -190,7 +234,7 @@ int main(int argc, char** argv){
       std::cout << "Process " << rank << " did not receive a node!" << std::endl;
 
     } else {
-      std::cout << "Process " << rank << " received the solution:\n" << sol_init_loc << std::endl;
+      //std::cout << "Process " << rank << " received the solution:\n" << sol_init_loc << std::endl;
 
       unsigned long int tot_solutions_generated = 0;
       std::stack<solution> q{};
@@ -234,7 +278,7 @@ int main(int argc, char** argv){
       //  std::cout << "No solutions found with less than " << solution<N>::colors_ub << " colors." << std::endl;
       //}
 
-      std::cout << "Process " << rank << " ended computation!" << std::endl;
+      //std::cout << "Process " << rank << " ended computation!" << std::endl;
 
     }
 
@@ -298,11 +342,11 @@ void* listen_for_ub_updates_from_workers(void* arg) {
         solution::colors_ub = new_best.tot_colors;
         best = new_best;
 
+        std::cout << "Process " << status.MPI_SOURCE << " sent solution:\n" << new_best << "\n";
+
         // broadcast new upperbound to workers
         MPI_Bcast(&solution::colors_ub, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
       }
-
-      std::cout << "Process " << status.MPI_SOURCE << " sent solution:\n" << new_best << "\n";
     }
   }
 
