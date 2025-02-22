@@ -1,15 +1,13 @@
 #include <mpi.h>
-
 #include <cstdio>
 #include <vector>
 #include <queue>
 #include <stack>
-
+#include <functional>
 #include <unordered_set>
 
 #include <pthread.h>
 #include <unistd.h>
-
 #include "../include/graph.h"
 #include "../include/solution.h"
 

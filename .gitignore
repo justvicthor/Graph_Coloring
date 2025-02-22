@@ -2,6 +2,6 @@ cmake-build-debug
 build
 .idea
 inputs
-!inputs/g.col
+!inputs/anna.col
 run.sh
 .DS_Store

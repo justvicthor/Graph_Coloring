@@ -16,4 +16,4 @@ add_executable(graph-coloring
         src/graph.cpp
 )
 
-target_link_libraries(graph-coloring PRIVATE MPI::MPI_CXX)
+target_link_libraries(graph-coloring PRIVATE MPI::MPI_CXX pthread)
