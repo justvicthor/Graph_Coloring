@@ -7,6 +7,9 @@ size_t solution::dim = -1;
 unsigned int solution::colors_ub = -1;
 unsigned int solution::colors_lb = 0;
 graph * solution::g = nullptr;
+std::vector<unsigned int> solution::nodes_to_visit;
+
+
 
 
 solution::solution() : color(solution::dim), tot_colors(0), next(0) {
@@ -14,8 +17,7 @@ solution::solution() : color(solution::dim), tot_colors(0), next(0) {
 
 
 bool solution::is_final() const {
-    for (unsigned int i = 0; i < solution::dim; ++i)
-        if (color[i] == 0) return false;
+    if (next < solution::dim) return false;
     return true;
 }
 
@@ -23,7 +25,7 @@ bool solution::is_final() const {
 [[nodiscard]] std::vector<solution> solution::get_next() const {
     assert(this->is_final() == false && "Cannot generate children of a complete solution!");
 
-    const unsigned int node_to_color = this->next;
+    const unsigned int node_to_color = solution::nodes_to_visit.at(this->next);
     const unsigned int colors = tot_colors + 1;
     //const unsigned int colors = dim;
 
@@ -49,7 +51,7 @@ solution::solution(const solution& parent, const unsigned int node_to_color, con
 
     // copy parameters
     tot_colors = node_color > parent.tot_colors ? parent.tot_colors + 1 : parent.tot_colors;
-    next = node_to_color + 1 >= solution::dim ? -1 : node_to_color + 1;
+    next = parent.next + 1;
 
     // color the node
     color[node_to_color] = node_color;
@@ -72,4 +74,30 @@ void solution::attach_graph(graph * g) {
     solution::colors_ub = dim + 1;
 
     solution::g = g;
+
+    initialize_nodes_to_visit();
+}
+
+void solution::initialize_nodes_to_visit() {
+    const size_t n = graph::dim;
+    std::vector<std::pair<size_t, size_t>> degree_indices;
+
+    for (size_t i = 0; i < n; ++i) {
+        size_t degree = 0;
+        for (size_t j = 0; j < n; ++j) {
+            if ((*g)(i, j)) {
+                ++degree;
+            }
+        }
+        degree_indices.emplace_back(degree, i);
+    }
+
+    std::sort(degree_indices.begin(), degree_indices.end(), [](const auto& a, const auto& b) {
+        return a.first > b.first;
+    });
+
+    nodes_to_visit.clear();
+    for (const auto& [degree, index] : degree_indices) {
+        nodes_to_visit.push_back(index);
+    }
 }

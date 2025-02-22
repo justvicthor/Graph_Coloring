@@ -57,8 +57,14 @@ struct solution {
 
 private:
 
+    static std::vector<unsigned int> nodes_to_visit;
+
     // constructor for the "child" of the solution
     solution(const solution& parent, unsigned int node_to_color, unsigned int node_color);
+
+    // sorts nodes in descending degree order to hopefully speed up tree search.
+    static void initialize_nodes_to_visit();
+
 };
 
 #endif //SOLUTION_H

@@ -181,7 +181,7 @@ int main(int argc, char** argv){
       }
     }
 
-    // at this point either the queue is found OR we can start assigning work to each process
+    // at this point either the solution is found OR we can start assigning work to each process
     if( initial_q.empty() ) {
       std::cout << "==== Optimal Solution ====\n" << best_so_far << "==========================\n";
       std::cout << "NO PARALLELISM USED \nTERMINATING ALL PROCESSES\n" << std::endl;
@@ -220,8 +220,6 @@ int main(int argc, char** argv){
     // start thread to listen to solutions found by worker threads
     pthread_t listener_thread;
     pthread_create(&listener_thread, nullptr, listen_for_ub_updates_from_workers, nullptr);
-
-    // start a thread to look for a lower bound on the solution
 
     // wait for workers to finish
     MPI_Barrier(MPI_COMM_WORLD);
