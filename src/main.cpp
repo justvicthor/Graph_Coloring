@@ -351,8 +351,12 @@ int main(int argc, char** argv){
       // if the queue is not empty the tree was not fully explored, and we can no longer claim optimality
       // unless we exited the loop due to lb being equal to ub
       solution dummy_sol;
-      if (!q.empty() && solution::colors_lb != solution::colors_ub)
+      if (!q.empty() && solution::colors_lb != solution::colors_ub) {
         send_solution(dummy_sol, 0, RETURN_TIME_LIMIT, MPI_COMM_WORLD);
+        std::cout << "Process " << rank << " time is up!\n\n";
+      } else if (q.empty()) {
+        std::cout << "Process " << rank << " emptied queue!\n\n";
+      }
 
     }
 
@@ -387,7 +391,6 @@ void* listen_for_ub_updates_from_root(void* arg) {
     if (message[type_idx] == RETURN) break;
 
     if (message[type_idx] == RETURN_TIME_LIMIT) {
-      std::cout << "Process " << rank << " time is up!\n\n";
       *keep_looping = false;
       break;
     }
@@ -456,6 +459,8 @@ void* listen_for_ub_updates_from_workers(void* arg) {
     std::cout << "===== SUB-OPT SOLUTION =====\n" << best << "============================" << std::endl;
   else
     std::cout << "No solutions found." << std::endl;
+
+  std::cout << std::flush;
 
   return nullptr;
 

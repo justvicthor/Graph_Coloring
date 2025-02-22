@@ -3,5 +3,4 @@ build
 .idea
 inputs
 !inputs/anna.col
-run.sh
 .DS_Store
