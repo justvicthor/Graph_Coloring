@@ -1,13 +1,11 @@
 #include "solution.h"
 
 #include <cassert>
-#include <mpi.h>
 
 size_t solution::dim = -1;
 unsigned int solution::colors_ub = -1;
 unsigned int solution::colors_lb = 0;
 graph * solution::g = nullptr;
-std::vector<unsigned int> solution::nodes_to_visit;
 
 
 
@@ -25,7 +23,7 @@ bool solution::is_final() const {
 [[nodiscard]] std::vector<solution> solution::get_next() const {
     assert(this->is_final() == false && "Cannot generate children of a complete solution!");
 
-    const unsigned int node_to_color = solution::nodes_to_visit.at(this->next);
+    const unsigned int node_to_color = this->node_with_most_colored_neighbors();
     const unsigned int colors = tot_colors + 1;
     //const unsigned int colors = dim;
 
@@ -74,30 +72,27 @@ void solution::attach_graph(graph * g) {
     solution::colors_ub = dim + 1;
 
     solution::g = g;
-
-    initialize_nodes_to_visit();
 }
 
-void solution::initialize_nodes_to_visit() {
-    const size_t n = graph::dim;
-    std::vector<std::pair<size_t, size_t>> degree_indices;
+[[nodiscard]] unsigned int solution::node_with_most_colored_neighbors() const {
+    size_t max_colored_neighbors = 0;
+    unsigned int best_node = 0;
 
-    for (size_t i = 0; i < n; ++i) {
-        size_t degree = 0;
-        for (size_t j = 0; j < n; ++j) {
-            if ((*g)(i, j)) {
-                ++degree;
+    for (size_t i = 0; i < dim; ++i) {
+        if (color[i] != 0) continue; // Skip already colored nodes
+
+        std::unordered_set<unsigned int> neighbor_colors;
+        for (size_t j = 0; j < dim; ++j) {
+            if ((*g)(i, j) && color[j] != 0) {
+                neighbor_colors.insert(color[j]);
             }
         }
-        degree_indices.emplace_back(degree, i);
+
+        if (neighbor_colors.size() > max_colored_neighbors) {
+            max_colored_neighbors = neighbor_colors.size();
+            best_node = i;
+        }
     }
 
-    std::sort(degree_indices.begin(), degree_indices.end(), [](const auto& a, const auto& b) {
-        return a.first > b.first;
-    });
-
-    nodes_to_visit.clear();
-    for (const auto& [degree, index] : degree_indices) {
-        nodes_to_visit.push_back(index);
-    }
+    return best_node;
 }
