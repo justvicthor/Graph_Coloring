@@ -41,18 +41,7 @@ struct solution {
     // returns a list of solutions, "children" of this, each one has a different color for the selected node
     [[nodiscard]] std::vector<solution> get_next() const;
 
-    friend std::ostream& operator<<(std::ostream& os, const solution& sol) {
-        os << "Solution:\t\t[ ";
-        for (unsigned int i = 0; i < solution::dim - 1; ++i)
-            os << sol.color[i] << ", ";
-        os << sol.color[solution::dim - 1] << " ]\n";
-        os << "Total colors:\t" << sol.tot_colors << "\n";
-        os << "Next:\t\t\t" << sol.next << "\n";
-        os << "Color ub:\t\t" << colors_ub << "\n";
-        os << "Color lb:\t\t" << colors_lb << "\n";
-
-        return os;
-    }
+    friend std::ostream& operator<<(std::ostream& os, const solution& sol);
 
     static void attach_graph(graph * g);
 

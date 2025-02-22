@@ -96,3 +96,22 @@ void solution::attach_graph(graph * g) {
 
     return best_node;
 }
+
+std::ostream& operator<<(std::ostream& os, const solution& sol) {
+    os << "Solution:\t\t[ ";
+
+    if (solution::dim > 5) {
+        os << "... ]\n";
+    } else {
+        for (unsigned int i = 0; i < solution::dim - 1; ++i)
+            os << sol.color[i] << ", ";
+        os << sol.color[solution::dim - 1] << " ]\n";
+    }
+
+    os << "Next:\t\t\t" << sol.next << "\n";
+    os << "Total colors:\t\t" << sol.tot_colors << "\n";
+    os << "Color ub:\t\t" << solution::colors_ub << "\n";
+    os << "Color lb:\t\t" << solution::colors_lb << "\n";
+
+    return os;
+}

@@ -97,7 +97,6 @@ int rank;
 int size;
 
 // TODO : ADD better output format (maybe in file)
-// TODO : add lower bound check
 
 int main(int argc, char** argv){
 
@@ -117,13 +116,34 @@ int main(int argc, char** argv){
 
   // ----- init MPI ----- //
 
+  if (argc != 2) {
+    if (rank == 0) std::cerr << "Usage:\nmpirun -n <number_of_processes> ./graph-coloring <path_to_input_graph_file>\n";
+    MPI_Finalize();
+    return 0;
+  }
+
+  if (size < 2) {
+    if (rank == 0) std::cerr << "At least 2 processes (-n 2) are required!\n";
+    MPI_Finalize();
+    return 0;
+  }
+
+
+  std::string file_path = argv[1];
+
   // ----- initialize queue ----- //
 
   // rank 0 process initializes the fist queue, exploring solution space with BFS
   if (rank == 0) {
 
     // initialize the graph and send it to other processes
-    g = graph("../inputs/anna.col");
+    try {
+      g = graph(file_path);
+    } catch (std::exception &e) {
+      std::cerr << e.what() << "\n";
+      MPI_Abort(MPI_COMM_WORLD, 1);
+      return 0;
+    }
 
     // send the graph to other processes
     broadcast_graph(g, 0, MPI_COMM_WORLD);
