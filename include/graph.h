@@ -17,6 +17,7 @@ struct graph {
     graph(size_t d, double density);
 
     static size_t dim;
+    static size_t edges;
 
     // incident matrix
     std::vector<std::vector<bool>> m;

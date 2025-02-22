@@ -115,3 +115,29 @@ std::ostream& operator<<(std::ostream& os, const solution& sol) {
 
     return os;
 }
+
+void solution::write_to_file(const std::string& instance_name, unsigned int time_taken, int n_processes, int time_limit_seconds) const {
+    std::ofstream outfile("../out/" + instance_name + ".output");
+    if (!outfile) {
+        std::cerr << "Error opening output file!" << std::endl;
+        return;
+    }
+
+    outfile << "problem_instance_file_name: " << instance_name << "\n";
+    outfile << "cmd_line: mpirun -n " << n_processes << " ./graph-coloring ../inputs/" << instance_name << " " << time_limit_seconds <<"\n";
+    outfile << "solver_version: v1.0.1\n";
+    outfile << "number_of_vertices: " << dim << "\n";
+    outfile << "number_of_edges: " << graph::edges << "\n";
+    outfile << "time_limit_sec: " << time_limit_seconds << "\n";
+    outfile << "number_of_worker_processes: " << n_processes << "\n";
+    outfile << "number_of_cores_per_worker: 2\n";
+    outfile << "wall_time_sec: " << time_taken << "\n";
+    outfile << "is_within_time_limit: " << (time_taken < time_limit_seconds ? "true" : "false") << "\n";
+    outfile << "number_of_colors: " << tot_colors << "\n";
+
+    for (size_t i = 0; i < color.size(); ++i) {
+        outfile << i << " " << color[i] << "\n";
+    }
+
+    outfile.close();
+}

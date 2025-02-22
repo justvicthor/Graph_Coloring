@@ -4,4 +4,4 @@ mkdir build
 cd build/
 cmake ..
 make
-mpirun -n 8 ./graph-coloring ../inputs/anna.col 100
+mpirun -n 8 ./graph-coloring ../inputs/anna.col 20

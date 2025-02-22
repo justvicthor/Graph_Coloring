@@ -1,6 +1,7 @@
 #include "graph.h"
 
 size_t graph::dim = -1;
+size_t graph::edges = 0;
 
 graph::graph() = default;
 
@@ -24,6 +25,7 @@ graph::graph(const std::string& file_path) {
             iss >> format >> nodes >> edges;
 
             graph::dim = nodes;
+            graph::edges = edges;
             m.resize(graph::dim, std::vector<bool>(graph::dim, false));
 
             if (format != "edge") {

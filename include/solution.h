@@ -45,6 +45,9 @@ struct solution {
 
     static void attach_graph(graph * g);
 
+    // Writes solution details to a file
+    void write_to_file(const std::string& instance_name, unsigned int time_taken, int n_processes, int time_limit_seconds) const;
+
 private:
 
     // constructor for the "child" of the solution
