@@ -16,6 +16,7 @@ struct solution {
 
     // upper bound on number of colors to use
     static unsigned int colors_ub;
+    static unsigned int colors_lb;
 
     // this array contains the color (repr as an integer) of each node: 0 -> color not assigned yet
     std::vector<unsigned int> color;
@@ -47,6 +48,7 @@ struct solution {
         os << "Total colors:\t" << sol.tot_colors << "\n";
         os << "Next:\t\t\t" << sol.next << "\n";
         os << "Color ub:\t\t" << colors_ub << "\n";
+        os << "Color lb:\t\t" << colors_lb << "\n";
 
         return os;
     }

@@ -5,6 +5,8 @@
 #include <queue>
 #include <stack>
 
+#include <unordered_set>
+
 #include <pthread.h>
 #include <unistd.h>
 
@@ -15,8 +17,16 @@ constexpr int INITIAL_NODE = 1;
 constexpr int SOLUTION_FROM_WORKER = 2;
 constexpr int RETURN = 3;
 
+constexpr unsigned int NEW_UB = 6;
+constexpr unsigned int NEW_LB = 9;
+
+constexpr int value_idx = 0;
+constexpr int type_idx = 1;
+
 void* listen_for_ub_updates_from_root(void* arg);
 void* listen_for_ub_updates_from_workers(void* arg);
+
+void* compute_lb(void* graph_ptr);
 
 void send_solution(const solution &sol, const int dest, const int tag, MPI_Comm comm) {
   // Create a buffer to hold all data
@@ -30,7 +40,6 @@ void send_solution(const solution &sol, const int dest, const int tag, MPI_Comm 
   // Send everything in a single call
   MPI_Send(buffer.data(), buffer.size(), MPI_UNSIGNED, dest, tag, comm);
 }
-
 void receive_solution(solution &sol, const int source, const int tag, MPI_Comm comm, MPI_Status &status) {
   // Create a buffer to receive all data
   std::vector<unsigned int> buffer(solution::dim + 2);
@@ -124,6 +133,17 @@ int main(int argc, char** argv){
     // give a reference of the graph to all instances of solution objects
     solution::attach_graph(&g);
 
+    // start to look for a lower bound
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+
+    // Set the thread as detached
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    // Create a detached pthread
+    pthread_t thread;
+    pthread_create(&thread, &attr, compute_lb, &g);
+
     std::queue<solution> initial_q{};
 
     const solution s{};
@@ -170,9 +190,9 @@ int main(int argc, char** argv){
       MPI_Abort(MPI_COMM_WORLD, 69);
     }
 
-    std::cout << "Process " << rank << " generated an initial queue with " << initial_q.size() << " nodes." << std::endl;
-    std::cout << "Current color upper bound is: " << solution::colors_ub << std::endl;
-    std::cout << (size - 1) - initial_q.size() << " worker processes will do nothing." << std::endl;
+    std::cout << "\nProcess " << rank << " generated an initial queue with " << initial_q.size() << " nodes.\n\n";
+    std::cout << "Current color upper bound is: " << solution::colors_ub << "\n\n";
+    std::cout << (size - 1) - initial_q.size() << " worker processes will do nothing.\n\n";
 
     // Print the queue
     /*
@@ -197,11 +217,13 @@ int main(int argc, char** argv){
       i++;
     }
 
-    std::cout << "Process 0 sent starting node to workers." << std::endl;
+    std::cout << "Process 0 sent starting node to workers.\n\n";
 
     // start thread to listen to solutions found by worker threads
     pthread_t listener_thread;
     pthread_create(&listener_thread, nullptr, listen_for_ub_updates_from_workers, nullptr);
+
+    // start a thread to look for a lower bound on the solution
 
     // wait for workers to finish
     MPI_Barrier(MPI_COMM_WORLD);
@@ -231,7 +253,7 @@ int main(int argc, char** argv){
 
     // if a message was received with a tag different from zero, the worker thread does nothing
     if(status.MPI_TAG != INITIAL_NODE) {
-      std::cout << "Process " << rank << " did not receive a node!" << std::endl;
+      std::cout << "Process " << rank << " did not receive a node!\n\n";
 
     } else {
       //std::cout << "Process " << rank << " received the solution:\n" << sol_init_loc << std::endl;
@@ -247,6 +269,12 @@ int main(int argc, char** argv){
         // pop the first element in the stack
         auto curr = q.top(); q.pop();
         tot_solutions_generated++;
+
+        // early termination
+        if(solution::colors_lb == solution::colors_ub) {
+          printf("Process %d terminating early!\n\n", rank);
+          break;
+        }
 
         if(!curr.is_final()) {
 
@@ -271,12 +299,9 @@ int main(int argc, char** argv){
         }
       }
 
-      //if(best_so_far.is_final()) {
-      //  std::cout << "==== Optimal Solution ====\n" << best_so_far << "==========================\n";
-      //  std::cout << "Tot solutions explored:\t" << tot_solutions_generated << std::endl << std::endl;
-      //} else {
-      //  std::cout << "No solutions found with less than " << solution<N>::colors_ub << " colors." << std::endl;
-      //}
+      // for good measure
+      if (best_so_far.is_final())
+        send_solution(best_so_far, 0, SOLUTION_FROM_WORKER, MPI_COMM_WORLD);
 
       //std::cout << "Process " << rank << " ended computation!" << std::endl;
 
@@ -294,7 +319,7 @@ int main(int argc, char** argv){
   }
 
 
-  std::cout << "Process " << rank << " completed!" << std::endl;
+  //std::cout << "Process " << rank << " completed!" << std::endl;
 
   MPI_Finalize();
 
@@ -306,14 +331,21 @@ void* listen_for_ub_updates_from_root(void* arg) {
 
   while (true) {
     // Blocking call: Will wait here until rank 0 broadcasts a message
-    unsigned int new_ub;
-    MPI_Bcast(&new_ub, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+    unsigned int message[2];
+    MPI_Bcast(message, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
-    if (new_ub == RETURN) break;
+    if (message[type_idx] == RETURN) break;
 
-    if (new_ub < solution::colors_ub) {
-      solution::colors_ub = new_ub;
-      std::cout << "Process " << rank << " received new ub: " << solution::colors_ub << std::endl;
+    if (message[type_idx] == NEW_LB) {
+      const unsigned int new_lb = message[value_idx];
+      solution::colors_lb = new_lb;
+
+      //std::cout << "New color lb is " << new_lb << std::endl;
+    }
+
+    if (message[type_idx] == NEW_UB && message[value_idx] < solution::colors_ub) {
+      solution::colors_ub = message[value_idx];
+      //std::cout << "Process " << rank << " received new ub: " << solution::colors_ub << std::endl;
     }
   }
 
@@ -345,15 +377,68 @@ void* listen_for_ub_updates_from_workers(void* arg) {
         std::cout << "Process " << status.MPI_SOURCE << " sent solution:\n" << new_best << "\n";
 
         // broadcast new upperbound to workers
-        MPI_Bcast(&solution::colors_ub, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+        unsigned int ub[2] = {solution::colors_ub, NEW_UB};
+        MPI_Bcast(ub , 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
       }
     }
   }
 
   // broadcast workers we are done
-  MPI_Bcast((void *)(&RETURN), 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+  unsigned int done[2] = {0, RETURN};
+  MPI_Bcast(done, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
   std::cout << "===== OPTIMAL SOLUTION =====\n" << best << "============================" << std::endl;
 
   return nullptr;
 
+}
+
+void* compute_lb(void* graph_ptr) {
+  const graph * g = static_cast<graph*>(graph_ptr);
+
+  std::unordered_set<int> P, X;  // P: potential nodes, X: already processed
+  unsigned int maxCliqueSize = 0;
+
+  // Initialize P with all nodes
+  for (int i = 0; i < graph::dim; ++i) {
+    P.insert(i);
+  }
+
+  // Recursive Bron-Kerbosch function
+  std::function<void(std::unordered_set<int>, std::unordered_set<int>, std::unordered_set<int>)>
+  bronKerbosch = [&](std::unordered_set<int> R, std::unordered_set<int> P, std::unordered_set<int> X) {
+    if (P.empty() && X.empty()) {
+      // Found a maximal clique
+      maxCliqueSize = std::max(maxCliqueSize, static_cast<unsigned int>(R.size()));
+      return;
+    }
+
+    std::unordered_set<int> P_copy = P;
+    for (int v : P_copy) {
+      std::unordered_set<int> R_new = R;
+      R_new.insert(v);
+
+      std::unordered_set<int> P_new, X_new;
+      for (int u : P) if (g->operator()(v, u)) P_new.insert(u);  // Keep only neighbors
+      for (int u : X) if (g->operator()(v, u)) X_new.insert(u);
+
+      bronKerbosch(R_new, P_new, X_new);  // Recursive call
+
+      P.erase(v);  // Remove v from P
+      X.insert(v); // Add v to X (processed)
+    }
+  };
+
+  bronKerbosch({}, P, X);  // Start with an empty clique
+
+  //return maxCliqueSize;
+
+  printf("===== MAX CLIQUE SIZE FOUND : %d =====\n\n", maxCliqueSize);
+  solution::colors_lb = maxCliqueSize;
+
+  // send the new lb to all working threads
+  unsigned int message[2] = {maxCliqueSize, NEW_LB};
+  MPI_Bcast(message, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
+  return nullptr;
 }

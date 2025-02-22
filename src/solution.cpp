@@ -5,6 +5,7 @@
 
 size_t solution::dim = -1;
 unsigned int solution::colors_ub = -1;
+unsigned int solution::colors_lb = 0;
 graph * solution::g = nullptr;
 
 
