@@ -7,6 +7,7 @@
 #include <unordered_set>
 
 #include <filesystem>
+#include <chrono>
 
 #include <pthread.h>
 #include <unistd.h>
@@ -100,15 +101,16 @@ void broadcast_graph(graph &g, const int root, MPI_Comm comm) {
 int rank;
 int size;
 
-std::string filename;
+std::string instance_name;
+unsigned int max_time;
+
+auto start = std::chrono::high_resolution_clock::now();
 
 // TODO : ADD better output format (maybe in file)
 
 int main(int argc, char** argv){
 
   graph g{};
-
-  unsigned int max_time;
 
   // ----- init MPI ----- //
 
@@ -163,7 +165,7 @@ int main(int argc, char** argv){
       g = graph(file_path);
 
       std::filesystem::path path_obj(file_path);
-      filename = path_obj.filename().string();
+      instance_name = path_obj.filename().string();
     } catch (std::exception &e) {
       std::cerr << e.what() << "\n";
       MPI_Abort(MPI_COMM_WORLD, 1);
@@ -453,6 +455,9 @@ void* listen_for_ub_updates_from_workers(void* arg) {
   unsigned int done[2] = {0, RETURN};
   MPI_Bcast(done, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> duration = end - start;
+
   if (best.is_final() && optimality)
     std::cout << "===== OPTIMAL SOLUTION =====\n" << best << "============================" << std::endl;
   else if (best.is_final() && !optimality)
@@ -461,6 +466,8 @@ void* listen_for_ub_updates_from_workers(void* arg) {
     std::cout << "No solutions found." << std::endl;
 
   std::cout << std::flush;
+
+  best.write_to_file(instance_name, duration.count(), size, max_time);
 
   return nullptr;
 
