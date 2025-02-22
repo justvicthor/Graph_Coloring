@@ -6,6 +6,8 @@
 #include <functional>
 #include <unordered_set>
 
+#include <filesystem>
+
 #include <pthread.h>
 #include <unistd.h>
 #include "../include/graph.h"
@@ -14,6 +16,7 @@
 constexpr int INITIAL_NODE = 1;
 constexpr int SOLUTION_FROM_WORKER = 2;
 constexpr int RETURN = 3;
+constexpr int RETURN_TIME_LIMIT = 4;
 
 constexpr unsigned int NEW_UB = 6;
 constexpr unsigned int NEW_LB = 9;
@@ -25,6 +28,7 @@ void* listen_for_ub_updates_from_root(void* arg);
 void* listen_for_ub_updates_from_workers(void* arg);
 
 void* compute_lb(void* graph_ptr);
+void* timer_thread(void* arg);
 
 void send_solution(const solution &sol, const int dest, const int tag, MPI_Comm comm) {
   // Create a buffer to hold all data
@@ -96,11 +100,15 @@ void broadcast_graph(graph &g, const int root, MPI_Comm comm) {
 int rank;
 int size;
 
+std::string filename;
+
 // TODO : ADD better output format (maybe in file)
 
 int main(int argc, char** argv){
 
   graph g{};
+
+  unsigned int max_time;
 
   // ----- init MPI ----- //
 
@@ -116,8 +124,17 @@ int main(int argc, char** argv){
 
   // ----- init MPI ----- //
 
-  if (argc != 2) {
-    if (rank == 0) std::cerr << "Usage:\nmpirun -n <number_of_processes> ./graph-coloring <path_to_input_graph_file>\n";
+  if (argc != 3) {
+    if (rank == 0) std::cerr << "Usage:\nmpirun -n <number_of_processes> ./graph-coloring <path_to_input_graph_file> <seconds_time_limit>\n";
+    MPI_Finalize();
+    return 0;
+  }
+
+  try {
+    max_time = std::stoul(argv[2]);
+    if (rank == 0) std::cout << "Time limit: " << max_time << " (s)" << std::endl;
+  } catch (const std::exception& e) {
+    if (rank == 0) std::cerr << "Error: Invalid unsigned integer." << std::endl;
     MPI_Finalize();
     return 0;
   }
@@ -136,9 +153,17 @@ int main(int argc, char** argv){
   // rank 0 process initializes the fist queue, exploring solution space with BFS
   if (rank == 0) {
 
+    // summon timer thread
+    pthread_t timer;
+    pthread_create(&timer, nullptr, timer_thread, &max_time);
+
+
     // initialize the graph and send it to other processes
     try {
       g = graph(file_path);
+
+      std::filesystem::path path_obj(file_path);
+      filename = path_obj.filename().string();
     } catch (std::exception &e) {
       std::cerr << e.what() << "\n";
       MPI_Abort(MPI_COMM_WORLD, 1);
@@ -263,9 +288,11 @@ int main(int argc, char** argv){
     MPI_Status status;
     receive_solution(sol_init_loc, 0, MPI_ANY_TAG, MPI_COMM_WORLD, status);
 
+    bool keep_looping = true;
+
     // summon listener thread
     pthread_t listener_thread;
-    pthread_create(&listener_thread, nullptr, listen_for_ub_updates_from_root, nullptr);
+    pthread_create(&listener_thread, nullptr, listen_for_ub_updates_from_root, &keep_looping);
 
     // if a message was received with a tag different from zero, the worker thread does nothing
     if(status.MPI_TAG != INITIAL_NODE) {
@@ -280,7 +307,7 @@ int main(int argc, char** argv){
 
       solution best_so_far;
 
-      while(!q.empty()) {
+      while(!q.empty() && keep_looping) {
 
         // pop the first element in the stack
         auto curr = q.top(); q.pop();
@@ -321,6 +348,12 @@ int main(int argc, char** argv){
 
       //std::cout << "Process " << rank << " ended computation!" << std::endl;
 
+      // if the queue is not empty the tree was not fully explored, and we can no longer claim optimality
+      // unless we exited the loop due to lb being equal to ub
+      solution dummy_sol;
+      if (!q.empty() && solution::colors_lb != solution::colors_ub)
+        send_solution(dummy_sol, 0, RETURN_TIME_LIMIT, MPI_COMM_WORLD);
+
     }
 
     // communicate to root process this process is done
@@ -344,6 +377,7 @@ int main(int argc, char** argv){
 
 // this function is executed by a thread on each worker process
 void* listen_for_ub_updates_from_root(void* arg) {
+  bool* keep_looping = static_cast<bool*>(arg);
 
   while (true) {
     // Blocking call: Will wait here until rank 0 broadcasts a message
@@ -351,6 +385,12 @@ void* listen_for_ub_updates_from_root(void* arg) {
     MPI_Bcast(message, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
     if (message[type_idx] == RETURN) break;
+
+    if (message[type_idx] == RETURN_TIME_LIMIT) {
+      std::cout << "Process " << rank << " time is up!\n\n";
+      *keep_looping = false;
+      break;
+    }
 
     if (message[type_idx] == NEW_LB) {
       const unsigned int new_lb = message[value_idx];
@@ -373,6 +413,8 @@ void* listen_for_ub_updates_from_workers(void* arg) {
   int worker_done = 0;
   solution best;
 
+  bool optimality = true;
+
   // while at least one worker has not finished
   while (worker_done < size - 1) {
     MPI_Status status;
@@ -381,6 +423,11 @@ void* listen_for_ub_updates_from_workers(void* arg) {
 
     if(status.MPI_TAG == RETURN) {
       worker_done += 1;
+    }
+
+    if(status.MPI_TAG == RETURN_TIME_LIMIT) {
+      worker_done += 1;
+      optimality = false;
     }
 
     if(status.MPI_TAG == SOLUTION_FROM_WORKER) {
@@ -403,10 +450,26 @@ void* listen_for_ub_updates_from_workers(void* arg) {
   unsigned int done[2] = {0, RETURN};
   MPI_Bcast(done, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
-  std::cout << "===== OPTIMAL SOLUTION =====\n" << best << "============================" << std::endl;
+  if (best.is_final() && optimality)
+    std::cout << "===== OPTIMAL SOLUTION =====\n" << best << "============================" << std::endl;
+  else if (best.is_final() && !optimality)
+    std::cout << "===== SUB-OPT SOLUTION =====\n" << best << "============================" << std::endl;
+  else
+    std::cout << "No solutions found." << std::endl;
 
   return nullptr;
 
+}
+
+void* timer_thread(void* arg) {
+  const unsigned int time_seconds = *static_cast<unsigned int*>(arg);
+  sleep(time_seconds);
+
+  // broadcast workers we are done
+  unsigned int done[2] = {0, RETURN_TIME_LIMIT};
+  MPI_Bcast(done, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
+  return nullptr;
 }
 
 void* compute_lb(void* graph_ptr) {
