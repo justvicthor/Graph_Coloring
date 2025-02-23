@@ -458,16 +458,18 @@ void* listen_for_ub_updates_from_workers(void* arg) {
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> duration = end - start;
 
-  if (best.is_final() && optimality)
+  if (best.is_final() && optimality) {
     std::cout << "===== OPTIMAL SOLUTION =====\n" << best << "============================" << std::endl;
-  else if (best.is_final() && !optimality)
+    best.write_to_file(instance_name, duration.count(), size, max_time, true);
+  }
+  else if (best.is_final() && !optimality) {
     std::cout << "===== SUB-OPT SOLUTION =====\n" << best << "============================" << std::endl;
+    best.write_to_file(instance_name, duration.count(), size, max_time, false);
+  }
   else
     std::cout << "No solutions found." << std::endl;
 
   std::cout << std::flush;
-
-  best.write_to_file(instance_name, duration.count(), size, max_time);
 
   return nullptr;
 

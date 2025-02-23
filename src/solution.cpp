@@ -116,8 +116,15 @@ std::ostream& operator<<(std::ostream& os, const solution& sol) {
     return os;
 }
 
-void solution::write_to_file(const std::string& instance_name, unsigned int time_taken, int n_processes, int time_limit_seconds) const {
-    std::ofstream outfile("../out/" + instance_name + ".output");
+void solution::write_to_file(const std::string& instance_name, unsigned int time_taken, int n_processes, int time_limit_seconds, bool is_optimal) const {
+    std::ofstream outfile;
+
+    if (is_optimal)
+        outfile.open("../out_opt/" + instance_name + ".output");
+    else
+        outfile.open("../out/" + instance_name + ".output");
+
+
     if (!outfile) {
         std::cerr << "Error opening output file!" << std::endl;
         return;
