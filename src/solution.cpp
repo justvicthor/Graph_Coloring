@@ -1,4 +1,5 @@
 #include "solution.h"
+#include <omp.h>
 
 #include <cassert>
 
@@ -78,19 +79,37 @@ void solution::attach_graph(graph * g) {
     size_t max_colored_neighbors = 0;
     unsigned int best_node = 0;
 
-    for (size_t i = 0; i < dim; ++i) {
-        if (color[i] != 0) continue; // Skip already colored nodes
+    // Parallel reduction to find the node with the most colored neighbors
+    #pragma omp parallel
+    {
+        size_t local_max_colored_neighbors = 0;
+        unsigned int local_best_node = 0;
 
-        std::unordered_set<unsigned int> neighbor_colors;
-        for (size_t j = 0; j < dim; ++j) {
-            if ((*g)(i, j) && color[j] != 0) {
-                neighbor_colors.insert(color[j]);
+        #pragma omp for nowait
+        for (size_t i = 0; i < dim; ++i) {
+            if (color[i] != 0) continue; // Skip already colored nodes
+
+            std::unordered_set<unsigned int> neighbor_colors;
+            for (size_t j = 0; j < dim; ++j) {
+                if ((*g)(i, j) && color[j] != 0) {
+                    neighbor_colors.insert(color[j]);
+                }
+            }
+
+            size_t neighbor_count = neighbor_colors.size();
+            if (neighbor_count > local_max_colored_neighbors) {
+                local_max_colored_neighbors = neighbor_count;
+                local_best_node = i;
             }
         }
 
-        if (neighbor_colors.size() > max_colored_neighbors) {
-            max_colored_neighbors = neighbor_colors.size();
-            best_node = i;
+        // Reduce to find the global best node
+        #pragma omp critical
+        {
+            if (local_max_colored_neighbors > max_colored_neighbors) {
+                max_colored_neighbors = local_max_colored_neighbors;
+                best_node = local_best_node;
+            }
         }
     }
 

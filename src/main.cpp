@@ -1,4 +1,5 @@
 #include <mpi.h>
+#include <omp.h>
 #include <cstdio>
 #include <vector>
 #include <queue>
@@ -13,6 +14,7 @@
 #include <unistd.h>
 #include "../include/graph.h"
 #include "../include/solution.h"
+#include "../include/maxclique.h"
 
 constexpr int INITIAL_NODE = 1;
 constexpr int SOLUTION_FROM_WORKER = 2;
@@ -484,52 +486,21 @@ void* timer_thread(void* arg) {
   return nullptr;
 }
 
+
+// Compute lower bound via max clique
 void* compute_lb(void* graph_ptr) {
-  const graph * g = static_cast<graph*>(graph_ptr);
+  graph* g = static_cast<graph*>(graph_ptr);
+  int max_clique_size = find_max_clique(*g);
 
-  std::unordered_set<int> P, X;  // P: potential nodes, X: already processed
-  unsigned int maxCliqueSize = 0;
+  printf("===== LOWER BOUND (Max Clique): %d =====\n\n", max_clique_size);
 
-  // Initialize P with all nodes
-  for (int i = 0; i < graph::dim; ++i) {
-    P.insert(i);
-  }
+  // Update the lower bound of whole system (solution::colors_lb)
+  solution::colors_lb = max_clique_size;
 
-  // Recursive Bron-Kerbosch function
-  std::function<void(std::unordered_set<int>, std::unordered_set<int>, std::unordered_set<int>)>
-  bronKerbosch = [&](std::unordered_set<int> R, std::unordered_set<int> P, std::unordered_set<int> X) {
-    if (P.empty() && X.empty()) {
-      // Found a maximal clique
-      maxCliqueSize = std::max(maxCliqueSize, static_cast<unsigned int>(R.size()));
-      return;
-    }
-
-    std::unordered_set<int> P_copy = P;
-    for (int v : P_copy) {
-      std::unordered_set<int> R_new = R;
-      R_new.insert(v);
-
-      std::unordered_set<int> P_new, X_new;
-      for (int u : P) if (g->operator()(v, u)) P_new.insert(u);  // Keep only neighbors
-      for (int u : X) if (g->operator()(v, u)) X_new.insert(u);
-
-      bronKerbosch(R_new, P_new, X_new);  // Recursive call
-
-      P.erase(v);  // Remove v from P
-      X.insert(v); // Add v to X (processed)
-    }
-  };
-
-  bronKerbosch({}, P, X);  // Start with an empty clique
-
-  //return maxCliqueSize;
-
-  printf("===== MAX CLIQUE SIZE FOUND : %d =====\n\n", maxCliqueSize);
-  solution::colors_lb = maxCliqueSize;
-
-  // send the new lb to all working threads
-  unsigned int message[2] = {maxCliqueSize, NEW_LB};
+  // Communicate new lb to all processes via MPI
+  unsigned int message[2] = { static_cast<unsigned int>(max_clique_size), NEW_LB };
   MPI_Bcast(message, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
   return nullptr;
 }
+

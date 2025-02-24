@@ -15,6 +15,7 @@ add_executable(graph-coloring
         src/main.cpp
         src/solution.cpp
         src/graph.cpp
+        src/maxclique.cpp
 )
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
