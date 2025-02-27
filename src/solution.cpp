@@ -2,6 +2,11 @@
 #include <omp.h>
 
 #include <cassert>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <filesystem>
+
+
 
 size_t solution::dim = -1;
 unsigned int solution::colors_ub = -1;
@@ -135,13 +140,13 @@ std::ostream& operator<<(std::ostream& os, const solution& sol) {
     return os;
 }
 
-void solution::write_to_file(const std::string& instance_name, unsigned int time_taken, int n_processes, int time_limit_seconds, bool is_optimal) const {
+/*void solution::write_to_file(const std::string& instance_name, unsigned int time_taken, int n_processes, int time_limit_seconds, bool is_optimal) const {
     std::ofstream outfile;
 
     if (is_optimal)
-        outfile.open("../out_opt/" + instance_name + ".output");
+        outfile.open("/out_opt/" + instance_name + ".output");
     else
-        outfile.open("../out/" + instance_name + ".output");
+        outfile.open("/out/" + instance_name + ".output");
 
 
     if (!outfile) {
@@ -166,4 +171,47 @@ void solution::write_to_file(const std::string& instance_name, unsigned int time
     }
 
     outfile.close();
+}*/
+
+void solution::write_to_file(const std::string& instance_name, unsigned int time_taken, int n_processes, int time_limit_seconds, bool is_optimal) const {
+    std::ofstream outfile;
+
+    std::string base_dir = std::filesystem::current_path();  // Current directory
+    std::string folder = base_dir + "/" + (is_optimal ? "out_opt" : "out");
+    std::string filepath = folder + "/" + instance_name + ".output";
+
+    // Check folder's existence
+    struct stat info;
+    if (stat(folder.c_str(), &info) != 0) {
+        if (mkdir(folder.c_str(), 0777) != 0) {
+            std::cerr << "Error: Could not create directory " << folder << std::endl;
+            return;
+        }
+    }
+
+    // Open the file
+    outfile.open(filepath);
+    if (!outfile) {
+        std::cerr << "Error opening output file: " << filepath << std::endl;
+        return;
+    }
+
+    outfile << "problem_instance_file_name: " << instance_name << "\n";
+    outfile << "cmd_line: srun -n " << n_processes << " ./graph-coloring ../inputs/" << instance_name << " " << time_limit_seconds <<"\n";
+    outfile << "solver_version: v1.0.1\n";
+    outfile << "number_of_vertices: " << dim << "\n";
+    outfile << "number_of_edges: " << graph::edges << "\n";
+    outfile << "time_limit_sec: " << time_limit_seconds << "\n";
+    outfile << "number_of_worker_processes: " << n_processes << "\n";
+    outfile << "number_of_cores_per_worker: 2\n";
+    outfile << "wall_time_sec: " << time_taken << "\n";
+    outfile << "is_within_time_limit: " << (time_taken < time_limit_seconds ? "true" : "false") << "\n";
+    outfile << "number_of_colors: " << tot_colors << "\n";
+
+    for (size_t i = 0; i < color.size(); ++i) {
+        outfile << i << " " << color[i] << "\n";
+    }
+
+    outfile.close();
 }
+
